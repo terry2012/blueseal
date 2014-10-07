@@ -15,6 +15,7 @@
 </path>
 
 <target name="build">
+    <mkdir dir="bin"/>
     <javac srcdir="${src}" destdir="${build}">
         <classpath refid="3rd-party-classpath" />
     </javac>
