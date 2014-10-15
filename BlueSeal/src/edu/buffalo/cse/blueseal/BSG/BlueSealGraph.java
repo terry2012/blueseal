@@ -102,7 +102,7 @@ public class BlueSealGraph {
 		this.retNodes.addAll(r);
 	}
 	
-	public Set getSrcs(){
+	public Set<SourceNode> getSrcs(){
 		return this.srcNodes;
 	}
 	

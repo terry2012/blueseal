@@ -36,7 +36,7 @@ public class InterProceduralMain {
 			PackManager.v().getPack("wjtp").
 				add(new Transform("wjtp.inter", BSInterproceduralTransformer.v()));
 	
-			String[] sootArgs = {"-w","-f", "n", "-allow-phantom-refs", "-x",
+			String[] sootArgs = {"-w","-f", "S", "-allow-phantom-refs", "-x",
 									"android.support.", "-x", "android.annotation.", 
 									"-process-dir", args[0],
 									"-android-jars", Constants.ANDROID_JARS, 
@@ -46,9 +46,9 @@ public class InterProceduralMain {
 									};
 			//add the following class to solve a CHATransform exception
 			//TODO: if this is the only way, create a separate file to add all basic classes
-			Scene.v().addBasicClass("android.support.v4.widget.DrawerLayout",SootClass.BODIES);
-			Scene.v().addBasicClass("org.apache.http.client.utils.URLEncodedUtils",SootClass.SIGNATURES);
-			Scene.v().addBasicClass("org.apache.http.protocol.BasicHttpContext",SootClass.HIERARCHY);
+//			Scene.v().addBasicClass("android.support.v4.widget.DrawerLayout",SootClass.BODIES);
+//			Scene.v().addBasicClass("org.apache.http.client.utils.URLEncodedUtils",SootClass.SIGNATURES);
+//			Scene.v().addBasicClass("org.apache.http.protocol.BasicHttpContext",SootClass.HIERARCHY);
 			
 			soot.Main.main(sootArgs);
 		}

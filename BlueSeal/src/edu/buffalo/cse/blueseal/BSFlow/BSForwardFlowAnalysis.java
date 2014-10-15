@@ -7,8 +7,11 @@ import java.util.Map;
 import java.util.Set;
 
 import soot.Body;
+import soot.G;
+import soot.Hierarchy;
 import soot.Local;
 import soot.RefType;
+import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.Unit;
@@ -432,7 +435,7 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 			// create a CVNode, treat it as a sink
 			// one special case: the RightOp is a source api call
 			// so that the unit is already treated as a sourceNode
-			// this would not intra analysis, but this would cause problem for
+			// this would not affect intra analysis, but this would cause problem for
 			// inter analysis
 			// solution: we create a CVNode and add a dummy edges to the bsg
 			Value value = ((AssignStmt) stmt).getLeftOp();
@@ -462,6 +465,20 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 							if(unitNode instanceof ArgNode || unitNode instanceof SourceNode
 									|| unitNode instanceof CVNode){
 								bsg.addEdge(unitNode, cvn);
+								
+								//here, check if this CV is defined in its own class, oz add more edges
+								if(!definedClass.declaresField(definedField, ref.getFieldRef().type())){
+									//not defined in current class, find all its parent classes
+									Hierarchy hierarchy = Scene.v().getActiveHierarchy();
+									List<SootClass> parents = hierarchy.getSuperclassesOf(definedClass);
+									for(SootClass sc : parents){
+										if(sc.declaresField(definedField,ref.getFieldRef().type())){
+											CVNode newCV = new CVNode(sc.getName()+definedField,
+													sc, definedField);
+											bsg.addEdge(unitNode, newCV);
+										}
+									}
+								}
 							}
 						}
 					}

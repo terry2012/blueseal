@@ -5,3 +5,5 @@ class: android.widget.EditText
 getText:Personal Data
 class: java.io.FileInputStream
 read:Storage
+class: android.widget.EditText
+toString:Personal Data

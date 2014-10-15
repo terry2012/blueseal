@@ -23,7 +23,7 @@ public class BSInterproceduralTransformer extends SceneTransformer {
 	        
 			BSInterproceduralAnalysis inter = 
 					new BSInterproceduralAnalysis(cg, new SootMethodFilter(null), 
-							entryPoints.iterator(), false);
+							CgTransformer.reachableMethods_.iterator(), false);
 			
 			GlobalBSG gBSG = new GlobalBSG(inter.data,
 					CgTransformer.reachableMethods_.iterator(), true);

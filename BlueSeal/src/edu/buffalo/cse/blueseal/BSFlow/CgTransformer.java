@@ -118,19 +118,19 @@ public class CgTransformer extends SceneTransformer {
         scene.setEntryPoints(entryPoints);
         Scene.v().releaseCallGraph();
         Scene.v().releaseReachableMethods();
-//        CHATransformer.v().transform();
-        HashMap opt = new HashMap();
-        opt.put("enabled", "true");
-        opt.put("VTA","true");
-        opt.put("verbose","true");
-        opt.put("propagator","worklist");
-        opt.put("simple-edges-bidirectional","false");
-        opt.put("on-fly-cg","true");
-        opt.put("set-impl","hash");
-        opt.put("double-set-old","hybrid");
-        opt.put("double-set-new","hybrid");
-        opt.put("dumpHTML","true");
-        SparkTransformer.v().transform("mySpark",opt);
+        CHATransformer.v().transform();
+//        HashMap opt = new HashMap();
+//        opt.put("enabled", "true");
+//        opt.put("VTA","true");
+//        opt.put("verbose","true");
+//        opt.put("propagator","worklist");
+//        opt.put("simple-edges-bidirectional","false");
+//        opt.put("on-fly-cg","true");
+//        opt.put("set-impl","hash");
+//        opt.put("double-set-old","hybrid");
+//        opt.put("double-set-new","hybrid");
+//        opt.put("dumpHTML","true");
+//        SparkTransformer.v().transform("mySpark",opt);
         cg = Scene.v().getCallGraph();
 
         Chain<SootClass> appClasses = Scene.v().getApplicationClasses();
@@ -594,8 +594,8 @@ public class CgTransformer extends SceneTransformer {
                 if (isMessengerMethod(invokeExpr, methodRef, unit))
                     messengerMethods.add(new MethodAndStmt(method, stmt));
                 
-//                if (invokeExpr instanceof InterfaceInvokeExpr)
-//                	interfaceMethods.add(new MethodAndStmt(method, stmt));
+                if (invokeExpr instanceof InterfaceInvokeExpr)
+                	interfaceMethods.add(new MethodAndStmt(method, stmt));
                 if (isReflectionInvoke(method, methodRef, unit))
                 		reflectionMethods.add(new MethodAndStmt(method, stmt));
                 	

@@ -15,6 +15,7 @@ import edu.buffalo.cse.blueseal.BSG.Edge;
 import edu.buffalo.cse.blueseal.BSG.Node;
 import edu.buffalo.cse.blueseal.BSG.SinkNode;
 import edu.buffalo.cse.blueseal.BSG.SourceNode;
+import edu.buffalo.cse.blueseal.blueseal.Debug;
 
 import soot.Local;
 import soot.RefType;
@@ -25,6 +26,7 @@ import soot.SootMethod;
 import soot.Type;
 import soot.Unit;
 import soot.Value;
+import soot.baf.Inst;
 import soot.jimple.AssignStmt;
 import soot.jimple.FieldRef;
 import soot.jimple.InstanceFieldRef;
@@ -43,13 +45,35 @@ public class GlobalBSG {
 	private Map<SootMethod, BlueSealGraph> methodsSum = new HashMap<SootMethod, BlueSealGraph>();
 	private BlueSealGraph gbsg = new BlueSealGraph();
 	private boolean isForward_;
+	private Iterator entry_;
 	// in this map, for each class variable maintain a list of sources that flow
 	// into it
 	HashMap<String, List<SourceNode>> cvToSource = new HashMap<String, List<SourceNode>>();
+	
+	public void printMethodSummary(){
+		for(Iterator it = CgTransformer.reachableMethods_.iterator(); it.hasNext();){
+			SootMethod method = (SootMethod) it.next();
+			
+			if(!methodsSum.containsKey(method)) continue;
+			
+			BlueSealGraph bsg = methodsSum.get(method);
+			bsg.print();
+		}
+	}
+	
+	public void printReachableMethods(){
+		Set<SootMethod> reachables = CgTransformer.reachableMethods_;
+		
+		for(SootMethod method : reachables){
+			System.out.println("[BlueSeal]-reachableMethod:"+method.getName());
+		}
+	}
 
 	public GlobalBSG(Map map, Iterator entry, boolean isForward){
 		this.methodsSum = map;
 		this.isForward_ = isForward;
+		this.entry_=entry;
+		
 
 		// detects flow crossing method
 		for(Iterator it = entry; it.hasNext();){
@@ -103,7 +127,7 @@ public class GlobalBSG {
 				cvMap.put(cvname, list);
 			}
 
-			// check methods that has written this CV
+			// check methods that has written into this CV
 			for(SootMethod m : methodsSum.keySet()){
 				HashSet<Edge> srcToCV = methodsSum.get(m).getSrcToCV();
 
@@ -148,6 +172,7 @@ public class GlobalBSG {
 		}
 		
 		//TODO: take care of cases CV to CV
+		processCV2CV();
 
 		for(SinkNode sink : gbsg.getSinks()){
 			if(isNetworkSink(sink)){
@@ -158,6 +183,60 @@ public class GlobalBSG {
 		// at this point, we have synthesized all the flows in the app,
 		// now calculate the flow permissions
 		generateFlowPermissions();
+	}
+
+	
+	private void processCV2CV() {
+		BlueSealGraph bsg = new BlueSealGraph();
+		BlueSealGraph newBsg = new BlueSealGraph();
+		
+		for(SootMethod method : methodsSum.keySet()){
+			BlueSealGraph mBsg = methodsSum.get(method);
+			bsg.addEdges(mBsg.getSrcToCV());
+			bsg.addEdges(mBsg.getCVToCV());
+			bsg.addEdges(mBsg.getCVToSink());
+		}
+		Set<SourceNode> sources = bsg.getSrcs();
+		for(Iterator it = sources.iterator();it.hasNext();){
+			SourceNode orig = (SourceNode) it.next();
+			List<Node> flowList = new LinkedList<Node>();
+			Set<Node> seen = new HashSet<Node>();
+			int depth = 0;
+			traverse(orig, flowList, seen, bsg, depth);
+			
+			//get all the sinks that can reach
+			for(Node node : flowList){
+				newBsg.addEdge(orig, node);
+			}
+		}
+		gbsg.addEdges(newBsg.getSrcToSink());
+		
+	}
+	
+	/*
+	 *  do a depth first traversal from current node
+	 */
+	private void traverse(Node orig, List list, Set<Node> seen, BlueSealGraph bsg,
+			int depth) {
+		if(depth >= 10) return;
+		depth++;
+		//if the current node is a sink node, stop
+		if(orig instanceof SinkNode){
+			//a complete flow path found, add to the whole flow set
+			list.add(orig);
+			return;
+		}
+		
+		//at this point, it means the path is not finished, check all the children nodes
+		for(Iterator iter = bsg.getEdgesOutOf(orig).iterator();iter.hasNext();){
+			Edge edge = (Edge)iter.next();
+			Set<Node> newseen = new HashSet<Node>();
+			newseen.addAll(seen);
+			newseen.add(orig);
+			if(newseen.contains(edge.getTarget())) continue;
+			
+			traverse(edge.getTarget(), list, newseen, bsg, depth);
+		}
 	}
 
 	private void reBuildSummary() {
