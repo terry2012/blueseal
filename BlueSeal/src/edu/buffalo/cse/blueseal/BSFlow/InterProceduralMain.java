@@ -19,14 +19,9 @@ public class InterProceduralMain {
 		}
 		String apkpath = args[0];
 		System.out.println("Analyzing:"+apkpath);
-		//redirect the stdout to get rid of Soot output info
-		//System.setOut(new PrintStream("/dev/null"));
 		//Get the sources and sinks from the input files
 		SourceSink.extractSootSourceSink();
 		
-		/*
-		 * this part is for Jimple
-		 */
 		//the following transform modifies the callgraph
 		{
 			SceneTransformer cgTransformer = new CgTransformer(args[0]);
@@ -36,45 +31,21 @@ public class InterProceduralMain {
 			PackManager.v().getPack("wjtp").
 				add(new Transform("wjtp.inter", BSInterproceduralTransformer.v()));
 	
-			String[] sootArgs = {"-w","-f", "S", "-allow-phantom-refs", "-x",
+			String[] sootArgs = {"-w","-f", "n", "-allow-phantom-refs", "-x",
 									"android.support.", "-x", "android.annotation.", 
 									"-process-dir", args[0],
 									"-android-jars", Constants.ANDROID_JARS, 
 									"-src-prec", "apk",
 									"-no-bodies-for-excluded"
-//									"-dump-cfg", "cg.mtran"
 									};
 			//add the following class to solve a CHATransform exception
 			//TODO: if this is the only way, create a separate file to add all basic classes
-//			Scene.v().addBasicClass("android.support.v4.widget.DrawerLayout",SootClass.BODIES);
-//			Scene.v().addBasicClass("org.apache.http.client.utils.URLEncodedUtils",SootClass.SIGNATURES);
-//			Scene.v().addBasicClass("org.apache.http.protocol.BasicHttpContext",SootClass.HIERARCHY);
+			Scene.v().addBasicClass("android.support.v4.widget.DrawerLayout",SootClass.BODIES);
+			Scene.v().addBasicClass("org.apache.http.client.utils.URLEncodedUtils",SootClass.SIGNATURES);
+			Scene.v().addBasicClass("org.apache.http.protocol.BasicHttpContext",SootClass.HIERARCHY);
 			
 			soot.Main.main(sootArgs);
 		}
-		
-		
-//		/*testing shimple*/
-//		{
-//			SceneTransformer cgTransformer = new CgTransformer(args[0]);
-//			
-//			PackManager.v().getPack("cg")
-//				.add(new Transform("cg.mtran", cgTransformer));
-//			PackManager.v().getPack("wstp")
-//				.add(new Transform("wstp.inter", BSInterproceduralTransformer.v()));
-//	 
-//
-//			String[] sootArgs = {"-w","-ws","-f", "S", "-allow-phantom-refs", "-x",
-//									"android.support.", "-x", "android.annotation.", 
-//									"-process-dir", args[0],
-//									"-android-jars", Constants.ANDROID_JARS, 
-//									"-src-prec", "apk"};
-//			soot.Main.main(sootArgs);
-//		}
-
-		
-		
-
   }
   
   public static void println(Object o){
