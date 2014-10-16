@@ -80,7 +80,14 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 
 		doAnalysis();
 
-		// updateBSG();
+	}
+	
+	public void printUnitToSet(){
+		for(Unit u : unitToSet.keySet()){
+			System.out.println("[BlueSeal]-flowset:"+u.toString());
+			System.out.println("--------->");
+			System.out.println("		"+unitToSet.get(u).toString());
+		}
 	}
 
 	private void updateBSG(){
@@ -155,6 +162,7 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 
 		// take care of instance invoke
 		if(stmt.containsInvokeExpr()){
+
 			InvokeExpr invoke = stmt.getInvokeExpr();
 			if(invoke instanceof InstanceInvokeExpr){
 				InstanceInvokeExpr iie = (InstanceInvokeExpr) invoke;
@@ -165,7 +173,12 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 					List<Unit> localDefUs = localDefs.getDefsOfAt((Local) base, stmt);
 
 					for(Unit u : localDefUs){
-						ArraySparseSet baseSet = unitToSet.get(u);
+						ArraySparseSet baseSet;
+						if(unitToSet.containsKey(u)){
+							baseSet= unitToSet.get(u);
+						}else{
+							baseSet = (ArraySparseSet) newInitialFlow();
+						}
 						ArraySparseSet previousBaseSet = new ArraySparseSet();
 						baseSet.copy(previousBaseSet);
 
@@ -193,15 +206,10 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 						
 
 						unitToSet.put(u, baseSet);
-
-//						if(!baseSet.equals(previousBaseSet)){
-//							Iterator succIt = graph.getSuccsOf(u).iterator();
-//
-//							while(succIt.hasNext()){
-//								Unit succ = (Unit) succIt.next();
-//								changedUnits.add(succ);
-//							}
-//						}
+						
+						if(!baseSet.equals(previousBaseSet)){
+							changedUnits.add(u);
+						}
 
 					}
 				}
@@ -259,7 +267,7 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 				if(leftV instanceof FieldRef){
 					/*
 					 * a value is assigned to class variable add all units flow into this
-					 * value to CV's flowInSet
+					 * value to CV's flowInSet, same if rightV is a class variable
 					 */
 					FieldRef fr = (FieldRef) leftV;
 					ArraySparseSet newSet;
@@ -275,6 +283,29 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 						FieldRef rfr = (FieldRef) rightV;
 						if(CVFlowSet.containsKey(rfr))
 							newSet.union(CVFlowSet.get(rfr));
+					}
+					CVFlowSet.put(fr, newSet);
+				}
+				
+				if(rightV instanceof FieldRef){
+					/*
+					 * a value is assigned to class variable add all units flow into this
+					 * value to CV's flowInSet, same if rightV is a class variable
+					 */
+					FieldRef fr = (FieldRef) rightV;
+					ArraySparseSet newSet;
+					if(CVFlowSet.containsKey(fr)){
+						newSet = CVFlowSet.get(fr);
+					}else{
+						newSet = new ArraySparseSet();
+					}
+					newSet.union(unitToSet.get(stmt));
+
+					if(leftV instanceof FieldRef){
+						// cv1 = cv2
+						FieldRef lfr = (FieldRef) leftV;
+						if(CVFlowSet.containsKey(lfr))
+							newSet.union(CVFlowSet.get(lfr));
 					}
 					CVFlowSet.put(fr, newSet);
 				}
@@ -428,7 +459,41 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 							definedClass, definedField);
 					bsg.addCVNode(cvn);
 					unitToNode.put(stmt, cvn);
+					
+					//if there is a source flows into this, this CV might be written
+					//check all the units flow into this stmt
+					ArraySparseSet flowset = unitToSet.get(stmt);
+					for(Iterator it = flowset.iterator();it.hasNext();){
+						Unit inUnit = (Unit) it.next();
+						if(inUnit.equals(stmt)) continue;
+						// for each unit, check if it's a node in BSG
+						if(!unitToNode.containsKey(inUnit))
+							continue;
+						Node unitNode = unitToNode.get(inUnit);
+
+						// only cares about argument Node&SourceNode
+						if(unitNode instanceof ArgNode || unitNode instanceof SourceNode
+								|| unitNode instanceof CVNode){
+							bsg.addEdge(unitNode, cvn);
+							
+							//here, check if this CV is defined in its own class, oz add more edges
+							if(!definedClass.declaresField(definedField, ref.getFieldRef().type())){
+								//not defined in current class, find all its parent classes
+								Hierarchy hierarchy = Scene.v().getActiveHierarchy();
+								List<SootClass> parents = hierarchy.getSuperclassesOf(definedClass);
+								for(SootClass sc : parents){
+									if(sc.declaresField(definedField,ref.getFieldRef().type())){
+										CVNode newCV = new CVNode(sc.getName()+definedField,
+												sc, definedField);
+										bsg.addEdge(unitNode, newCV);
+									}
+								}
+							}
+						}
+					
+					}
 				}
+				
 			}
 
 			// if CV is the left operator, we are writing into CV

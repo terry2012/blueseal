@@ -596,6 +596,7 @@ public class CgTransformer extends SceneTransformer {
                 
                 if (invokeExpr instanceof InterfaceInvokeExpr)
                 	interfaceMethods.add(new MethodAndStmt(method, stmt));
+                
                 if (isReflectionInvoke(method, methodRef, unit))
                 		reflectionMethods.add(new MethodAndStmt(method, stmt));
                 	
@@ -787,6 +788,8 @@ public class CgTransformer extends SceneTransformer {
 		Hierarchy hierarchy = Scene.v().getActiveHierarchy();
 		List<SootClass> implClasses = hierarchy.getImplementersOf(interfaceClass);
 		SootMethod invokeMethod = invokeExpr.getMethod();
+		
+		boolean replaced = false;
 		for(SootClass impl : implClasses){
 			if(!impl.isApplicationClass()) continue;
 			
@@ -810,9 +813,10 @@ public class CgTransformer extends SceneTransformer {
             Stmt newInvokeStmt = Jimple.v().newInvokeStmt(newExpr);
             units.insertBefore(newInvokeStmt, stmt);
             cg.addEdge(new Edge(method, newInvokeStmt, implMethod));
+            replaced = true;
 
 		}
-		units.remove(stmt);
+		if(replaced)  units.remove(stmt);
 		
 	}
 
