@@ -1,5 +1,6 @@
 package edu.buffalo.cse.blueseal.BSFlow;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -8,6 +9,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import polyglot.ast.Assign;
 
 import edu.buffalo.cse.blueseal.blueseal.EntryPointsMapLoader;
 import soot.Body;
@@ -29,12 +32,17 @@ import soot.Unit;
 import soot.Value;
 import soot.ValueBox;
 import soot.JastAddJ.Signatures;
+import soot.jimple.ArrayRef;
 import soot.jimple.AssignStmt;
+import soot.jimple.ClassConstant;
+import soot.jimple.Constant;
 import soot.jimple.InstanceInvokeExpr;
+import soot.jimple.IntConstant;
 import soot.jimple.InterfaceInvokeExpr;
 import soot.jimple.InvokeExpr;
 import soot.jimple.InvokeStmt;
 import soot.jimple.Jimple;
+import soot.jimple.NewArrayExpr;
 import soot.jimple.NewExpr;
 import soot.jimple.NullConstant;
 import soot.jimple.SpecialInvokeExpr;
@@ -50,6 +58,7 @@ import soot.jimple.toolkits.callgraph.ReachableMethods;
 import soot.toolkits.graph.ExceptionalUnitGraph;
 import soot.toolkits.scalar.ArraySparseSet;
 import soot.toolkits.scalar.SimpleLiveLocals;
+import soot.toolkits.scalar.SimpleLocalDefs;
 import soot.toolkits.scalar.SmartLocalDefs;
 import soot.util.Chain;
 import soot.util.queue.QueueReader;
@@ -632,15 +641,72 @@ public class CgTransformer extends SceneTransformer {
     			!method.getDeclaringClass().isApplicationClass()) return;
     	
     	InvokeExpr reflectInvokeExpr = stmt.getInvokeExpr();
-    	List<Value> reflectInvokeArgs = reflectInvokeExpr.getArgs();
+    	List<Value> reflectInvokeArgs = new ArrayList<Value>();
     	// we need to find out right class name and method for the reflection
     	String reflectiveClassName = null;
     	String reflectiveClassMethodName = null;
-    	List<Type> reflectiveMethodArgs = new LinkedList<Type>();
-    	
+    	List<Type> reflectiveMethodArgsType = new LinkedList<Type>();
+    	List<Value> reflectiveMethodArgs = new LinkedList<Value>();    	
     	Body body = method.getActiveBody();
     	ExceptionalUnitGraph eug = new ExceptionalUnitGraph(body);
     	PatchingChain<Unit> units = body.getUnits();
+    	SimpleLocalDefs sld = new SimpleLocalDefs(eug);
+    	
+    	//re-build the list of args passed to the real method
+    	//for reflection "invoke", it takes only 2 arguments:1, object instance 2,list of arguments passed to the method
+    	//if not, something is wrong, do nothing
+    	if(reflectInvokeExpr.getArgCount() > 2) return;
+    	
+    	Value reflectionInvokeArgsList = reflectInvokeExpr.getArg(1);
+    	//build-up the list of args
+    //create a temp array to hold all the parameter types
+			ArrayList<Value> argsArray = new ArrayList<Value>();
+			int argsArraySize = 0;
+			List<Unit> reflectArgDefs = sld.getDefsOfAt((Local)reflectionInvokeArgsList, stmt);
+			for(Iterator defIt = reflectArgDefs.iterator();defIt.hasNext();){
+				//find the definition of new array allocation
+				Unit argDef = (Unit)defIt.next();
+				
+				if(argDef instanceof AssignStmt){
+					Value leftV = ((AssignStmt)argDef).getLeftOp();
+					Value rightV = ((AssignStmt)argDef).getRightOp();
+					if(leftV.equals(reflectionInvokeArgsList)&&
+							rightV instanceof NewArrayExpr){
+						Value arraySize = ((NewArrayExpr)rightV).getSize();
+						if(arraySize instanceof IntConstant){
+							argsArraySize = ((IntConstant)arraySize).value;
+						}
+					}
+				}
+			}
+			
+		//Currently, take care of passing all the parameters' types using array
+			//TODO: any other cases?
+			//check all the elements in the parameter array
+			for(Iterator pa = eug.getPredsOf(stmt).iterator(); pa.hasNext();){
+				Stmt paramU = (Stmt) pa.next();
+				//Currently only handle code that specifies all the parameters' type classes
+				if(paramU instanceof AssignStmt){
+					Value leftV = ((AssignStmt)paramU).getLeftOp();
+					Value rightV = ((AssignStmt)paramU).getRightOp();
+					
+					if(leftV instanceof ArrayRef){
+						Value base = ((ArrayRef)leftV).getBase();
+						Value index = ((ArrayRef)leftV).getIndex();
+						int vIndex = ((IntConstant)index).value;
+						if(base.equals(reflectionInvokeArgsList)){
+							//find the array index and its type class, put into a temp array
+							argsArray.add(vIndex, rightV);
+						}
+					}
+				}
+			}
+			
+			//after finding all the parameter types, add these into method parameter list in order
+			for(int j = 0; j < argsArraySize; j++){
+				reflectInvokeArgs.add(argsArray.get(j));
+			}
+
     	
     	if(!methodSummary.containsKey(method)) return;
     	
@@ -676,9 +742,69 @@ public class CgTransformer extends SceneTransformer {
     				&&returnType.equals("java.lang.reflect.Method")){
     			reflectiveClassMethodName = invokeExpr.getArg(0).toString();
     			
-    			for(int i = 1; i < args.size(); i++){
+    			//there should be only tow arguments passed: 1. method name 2. array of parameterTypes
+    			if(invokeExpr.getArgCount() > 2){//there must be something wrong here
+    				System.out.println("[BlueSeal]:Reflection getMethod parameters error! Skip resolving this reflection!");
+    				continue;
+    			}
+    			
+    			//create a temp array to hold all the parameter types
+    			ArrayList<Type> paramTypeArray = new ArrayList<Type>();
+    			
+    			for(int i = 1; i < invokeExpr.getArgCount(); i++){
+    				int reflectiveMethodArgsSize = 0;
     				//skip the first arg, because it's method name
-    				reflectiveMethodArgs.add(args.get(i));
+    				//find all the types for reflection getMethod
+    				Value argument = invokeExpr.getArg(i);
+    				List<Unit> argDefs = sld.getDefsOfAt((Local) argument, unit);
+    				for(Iterator defIt = argDefs.iterator();defIt.hasNext();){
+    					//find the definition of new array allocation
+    					Unit argDef = (Unit)defIt.next();
+    					
+    					if(argDef instanceof AssignStmt){
+    						Value leftV = ((AssignStmt)argDef).getLeftOp();
+    						Value rightV = ((AssignStmt)argDef).getRightOp();
+    						if(leftV.equals(argument)&&
+    								rightV instanceof NewArrayExpr){
+    							Value arraySize = ((NewArrayExpr)rightV).getSize();
+									if(arraySize instanceof IntConstant){
+    								reflectiveMethodArgsSize = ((IntConstant)arraySize).value;
+									}
+    						}
+    					}
+    				}
+    				
+    				//Currently, take care of passing all the parameters' types using array
+    				//TODO: any other cases?
+    				//check all the elements in the parameter array
+    				for(Iterator pa = eug.getPredsOf(unit).iterator(); pa.hasNext();){
+    					Stmt paramU = (Stmt) pa.next();
+    					//Currently only handle code that specifies all the parameters' type classes
+    					if(paramU instanceof AssignStmt){
+    						Value leftV = ((AssignStmt)paramU).getLeftOp();
+    						Value rightV = ((AssignStmt)paramU).getRightOp();
+    						
+    						if(leftV instanceof ArrayRef){
+    							Value base = ((ArrayRef)leftV).getBase();
+    							Value index = ((ArrayRef)leftV).getIndex();
+    							int vIndex = ((IntConstant)index).value;
+    							if(base.equals(argument)
+      								&& rightV instanceof ClassConstant){
+      							//find the array index and its type class, put into a temp array
+      							String valueType = ((ClassConstant)rightV).value;
+      							valueType = valueType.replace('/', '.');
+      							RefType refType = RefType.v(valueType);
+      							paramTypeArray.add(vIndex, refType);
+      						}
+    						}
+    					}
+    					
+    				}
+    				
+    				//after finding all the parameter types, add these into method parameter list in order
+    				for(int j = 0; j < reflectiveMethodArgsSize; j++){
+    					reflectiveMethodArgsType.add(paramTypeArray.get(j));
+    				}
     			}
     		}
     	}//end of finding reflection class & method information
@@ -703,12 +829,14 @@ public class CgTransformer extends SceneTransformer {
     		scene.v().loadClassAndSupport(reflectiveClassName);
     		
     		if(Scene.v().containsClass(reflectiveClassName)){
+    			
     			SootClass sootClass = Scene.v().getSootClass(reflectiveClassName);
     			
     			if(sootClass.declaresMethodByName(reflectiveClassMethodName)){
+
     				SootMethod reflectiveMethod = null;
-    				try{
-    					reflectiveMethod = sootClass.getMethod(reflectiveClassMethodName, reflectiveMethodArgs);
+    				try{    						
+    					reflectiveMethod = sootClass.getMethod(reflectiveClassMethodName, reflectiveMethodArgsType);
     				}catch(RuntimeException e){
     					//no method found, do nothing
     					return;
@@ -727,7 +855,6 @@ public class CgTransformer extends SceneTransformer {
     				//create a new method invoke expr
     				//first construct the arg list
     				//remove the first one, because it is the reflection instance object
-    				reflectInvokeArgs.remove(0);
     				InvokeExpr newInvokeExpr;
     				if(reflectiveMethod.isStatic()){
     					StaticInvokeExpr newStaticInvoke =
