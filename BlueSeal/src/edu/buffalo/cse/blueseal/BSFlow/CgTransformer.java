@@ -1,6 +1,5 @@
 package edu.buffalo.cse.blueseal.BSFlow;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,11 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import polyglot.ast.Assign;
-
-import edu.buffalo.cse.blueseal.blueseal.EntryPointsMapLoader;
 import soot.Body;
-import soot.G;
 import soot.Hierarchy;
 import soot.IntType;
 import soot.Local;
@@ -23,7 +18,6 @@ import soot.PatchingChain;
 import soot.RefType;
 import soot.Scene;
 import soot.SceneTransformer;
-import soot.Singletons;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.SootMethodRef;
@@ -31,11 +25,9 @@ import soot.Type;
 import soot.Unit;
 import soot.Value;
 import soot.ValueBox;
-import soot.JastAddJ.Signatures;
 import soot.jimple.ArrayRef;
 import soot.jimple.AssignStmt;
 import soot.jimple.ClassConstant;
-import soot.jimple.Constant;
 import soot.jimple.InstanceInvokeExpr;
 import soot.jimple.IntConstant;
 import soot.jimple.InterfaceInvokeExpr;
@@ -50,7 +42,6 @@ import soot.jimple.StaticFieldRef;
 import soot.jimple.StaticInvokeExpr;
 import soot.jimple.Stmt;
 import soot.jimple.VirtualInvokeExpr;
-import soot.jimple.spark.SparkTransformer;
 import soot.jimple.toolkits.callgraph.CHATransformer;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
@@ -62,6 +53,7 @@ import soot.toolkits.scalar.SimpleLocalDefs;
 import soot.toolkits.scalar.SmartLocalDefs;
 import soot.util.Chain;
 import soot.util.queue.QueueReader;
+import edu.buffalo.cse.blueseal.blueseal.EntryPointsMapLoader;
 
 public class CgTransformer extends SceneTransformer {
 	public static Set<SootClass> applicationClasses = 
@@ -640,6 +632,8 @@ public class CgTransformer extends SceneTransformer {
     	if(!method.hasActiveBody() ||
     			!method.getDeclaringClass().isApplicationClass()) return;
     	
+    	System.out.println("[BlueSeal]:resolve reflection invokes @stmt:"+stmt.toString());
+    	
     	InvokeExpr reflectInvokeExpr = stmt.getInvokeExpr();
     	List<Value> reflectInvokeArgs = new ArrayList<Value>();
     	// we need to find out right class name and method for the reflection
@@ -660,7 +654,7 @@ public class CgTransformer extends SceneTransformer {
     	Value reflectionInvokeArgsList = reflectInvokeExpr.getArg(1);
     	//build-up the list of args
     //create a temp array to hold all the parameter types
-			ArrayList<Value> argsArray = new ArrayList<Value>();
+			Map<Integer, Value> argsArray = new HashMap<Integer, Value>();
 			int argsArraySize = 0;
 			List<Unit> reflectArgDefs = sld.getDefsOfAt((Local)reflectionInvokeArgsList, stmt);
 			for(Iterator defIt = reflectArgDefs.iterator();defIt.hasNext();){
@@ -685,6 +679,7 @@ public class CgTransformer extends SceneTransformer {
 			//check all the elements in the parameter array
 			for(Iterator pa = eug.getPredsOf(stmt).iterator(); pa.hasNext();){
 				Stmt paramU = (Stmt) pa.next();
+				
 				//Currently only handle code that specifies all the parameters' type classes
 				if(paramU instanceof AssignStmt){
 					Value leftV = ((AssignStmt)paramU).getLeftOp();
@@ -696,7 +691,7 @@ public class CgTransformer extends SceneTransformer {
 						int vIndex = ((IntConstant)index).value;
 						if(base.equals(reflectionInvokeArgsList)){
 							//find the array index and its type class, put into a temp array
-							argsArray.add(vIndex, rightV);
+							argsArray.put(vIndex, rightV);
 						}
 					}
 				}
@@ -704,6 +699,8 @@ public class CgTransformer extends SceneTransformer {
 			
 			//after finding all the parameter types, add these into method parameter list in order
 			for(int j = 0; j < argsArraySize; j++){
+				if(!argsArray.containsKey(j)) return;
+				
 				reflectInvokeArgs.add(argsArray.get(j));
 			}
 
