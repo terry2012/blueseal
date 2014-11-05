@@ -56,6 +56,12 @@ else
   mkdir BlueSealOutput
 fi
 
+if [ -d "BlueSealError" ];then
+	echo "Error folder exists!"
+else
+	mkdir BlueSealError
+fi
+
 #path=$1/$2
 #apk=$2
 
@@ -66,7 +72,7 @@ if [ "$dflag" = true ];then
   for apk in $dir/*
   do
     apkname=$(basename $apk ".apk")
-    ant -Darg0=$apk runTimeOut >> ./BlueSealOutput/$apkname.txt
+    ant -Darg0=$apk runTimeOut >> ./BlueSealOutput/$apkname.txt 2>./BlueSealError/$apkname.txt
   done
 fi
 
@@ -74,7 +80,7 @@ fi
 #process a single apk file
 if [ "$fflag" = true ];then
   apkname=$(basename $file ".apk")
-  ant -Darg0=$file runTimeOut >> ./BlueSealOutput/$apkname.txt
+  ant -Darg0=$file runTimeOut >> ./BlueSealOutput/$apkname.txt 2>./BlueSealError/$apkname.txt
 fi
 
 
@@ -85,6 +91,6 @@ if [ "$listflag" = true ];then
     echo "$line"
     apk=$listdir/$line
     apkname=$(basename $line ".apk")
-    ant -Darg0=$apk runTimeOut >> ./BlueSealOutput/$apkname.txt
+    ant -Darg0=$apk runTimeOut >> ./BlueSealOutput/$apkname.txt 2>./BlueSealError/$apkname.txt
   done<$list
 fi
