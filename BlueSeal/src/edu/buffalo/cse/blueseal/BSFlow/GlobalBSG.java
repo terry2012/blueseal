@@ -172,7 +172,7 @@ public class GlobalBSG {
 		}
 		
 		//TODO: take care of cases CV to CV
-		processCV2CV();
+		//processCV2CV();
 
 		for(SinkNode sink : gbsg.getSinks()){
 			if(isNetworkSink(sink)){

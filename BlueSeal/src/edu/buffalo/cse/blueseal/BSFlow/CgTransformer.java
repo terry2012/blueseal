@@ -595,7 +595,7 @@ public class CgTransformer extends SceneTransformer {
                 if (isMessengerMethod(invokeExpr, methodRef, unit))
                     messengerMethods.add(new MethodAndStmt(method, stmt));
                 
-                if (invokeExpr instanceof InterfaceInvokeExpr)
+                if(isInterfaceInvoke(invokeExpr, methodRef, unit))
                 	interfaceMethods.add(new MethodAndStmt(method, stmt));
                 
                 if (isReflectionInvoke(method, methodRef, unit))
@@ -627,7 +627,25 @@ public class CgTransformer extends SceneTransformer {
         return cg;
     }
     
-    private void addReflectionMethodEdges(SootMethod method, Stmt stmt,
+    private boolean isInterfaceInvoke(InvokeExpr invokeExpr,
+				SootMethodRef methodRef, Unit unit) {
+			/*
+			 * here only check if this is an interface invoke
+			 * and see if it's necessary to handle this
+			 * case 1: there is an example observed when running real-world app, even it's an interface invoke, but
+			 * soot class hierarchy cannot treat it as an interface
+			 */
+    	if(!(invokeExpr instanceof InterfaceInvokeExpr)) return false;
+    	
+
+  		SootClass interfaceClass = invokeExpr.getMethodRef().declaringClass();
+  		
+  		if(!interfaceClass.isInterface()) return false;
+
+			return true;
+		}
+
+		private void addReflectionMethodEdges(SootMethod method, Stmt stmt,
 				CallGraph cg2){
     	if(!method.hasActiveBody() ||
     			!method.getDeclaringClass().isApplicationClass()) return;
@@ -746,7 +764,7 @@ public class CgTransformer extends SceneTransformer {
     			}
     			
     			//create a temp array to hold all the parameter types
-    			ArrayList<Type> paramTypeArray = new ArrayList<Type>();
+    			Map<Integer, Type> paramTypeArray = new HashMap<Integer, Type>();
     			
     			for(int i = 1; i < invokeExpr.getArgCount(); i++){
     				int reflectiveMethodArgsSize = 0;
@@ -791,7 +809,7 @@ public class CgTransformer extends SceneTransformer {
       							String valueType = ((ClassConstant)rightV).value;
       							valueType = valueType.replace('/', '.');
       							RefType refType = RefType.v(valueType);
-      							paramTypeArray.add(vIndex, refType);
+      							paramTypeArray.put(vIndex, refType);
       						}
     						}
     					}
@@ -800,6 +818,8 @@ public class CgTransformer extends SceneTransformer {
     				
     				//after finding all the parameter types, add these into method parameter list in order
     				for(int j = 0; j < reflectiveMethodArgsSize; j++){
+    					if(!paramTypeArray.containsKey(j)) return;
+    					
     					reflectiveMethodArgsType.add(paramTypeArray.get(j));
     				}
     			}

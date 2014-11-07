@@ -207,9 +207,9 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 
 						unitToSet.put(u, baseSet);
 						
-						if(!baseSet.equals(previousBaseSet)){
-							changedUnits.add(u);
-						}
+//						if(!baseSet.equals(previousBaseSet)){
+//							changedUnits.add(u);
+//						}
 
 					}
 				}
