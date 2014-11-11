@@ -199,7 +199,6 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 
 							for(Unit valU : defUs){
 								baseSet.add(valU);
-								baseSet.union(unitToSet.get(valU));
 							}
 							
 						}
@@ -208,7 +207,9 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 						unitToSet.put(u, baseSet);
 						
 //						if(!baseSet.equals(previousBaseSet)){
-//							changedUnits.add(u);
+//							System.out.println("[BlueSeal]: unit summary changed->"+u.toString());
+//							changedUnits.addAll(eug.getSuccsOf(u));
+//							System.out.println("[BlueSesal]:"+eug.getSuccsOf(u).toString());
 //						}
 
 					}
@@ -444,6 +445,52 @@ public class BSForwardFlowAnalysis extends ForwardFlowAnalysis {
 		else{
 			// do nothing
 		}
+		
+		/*
+		 * if stmt is instanceInvokeStmt, and the base is a class variable
+		 * there might be the case that we are writing into a class variable
+		 */
+		if(stmt.containsInvokeExpr()){
+			//check the base, if it's a class variable reference
+			InvokeExpr invokeExpr = stmt.getInvokeExpr();
+			if(invokeExpr instanceof InstanceInvokeExpr){
+				Value base = ((InstanceInvokeExpr)invokeExpr).getBase();
+				
+				if(base instanceof Local){
+					List<Unit> defs = localDefs.getDefsOfAt((Local) base, stmt);
+					
+					for(Unit def : defs){
+						if(def instanceof AssignStmt){
+							Value rightValue = ((AssignStmt)def).getRightOp();
+							
+							if(rightValue instanceof FieldRef){
+								//create a CVNode
+								SootClass refClass = ((FieldRef)rightValue).getFieldRef().declaringClass();
+								String refFieldName = ((FieldRef)rightValue).getFieldRef().name();
+								CVNode cvn = new CVNode(refClass.toString()+refFieldName, refClass, refFieldName);
+								
+								//check all the units flow into this stmt
+								ArraySparseSet flowUnits = unitToSet.get(stmt);
+								
+								for(Iterator it = flowUnits.iterator(); it.hasNext();){
+									Unit flowUnit = (Unit)it.next();
+									
+									if(unitToNode.containsKey(flowUnit)){
+										Node unitNode = unitToNode.get(flowUnit);
+										
+										if(unitNode instanceof CVNode ||
+												unitNode instanceof SourceNode){
+											bsg.addEdge(unitNode, cvn);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
 
 		if(stmt instanceof AssignStmt){
 			// if CV is the right operator, we are reading CV
