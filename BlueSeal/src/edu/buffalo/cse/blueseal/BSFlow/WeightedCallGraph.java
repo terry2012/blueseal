@@ -10,6 +10,7 @@ import soot.SootMethod;
 import soot.Unit;
 import soot.jimple.toolkits.callgraph.CallGraph;
 import soot.jimple.toolkits.callgraph.Edge;
+import soot.util.queue.QueueReader;
 
 /*
 *This is the extension
@@ -35,36 +36,29 @@ public class WeightedCallGraph //extends CallGraph
 	{
 		this.cg = cg;//built off already existing callgraph
 		
-		Iterator<MethodOrMethodContext> mIter = cg.sourceMethods();
+		QueueReader<Edge> qe = cg.listener();
 		
-		while(mIter.hasNext())
-		{
-			MethodOrMethodContext m = mIter.next();
 			
-			Iterator<Edge> eIter = cg.edgesOutOf(m);
-			
-			while(eIter.hasNext())
+			while(qe.hasNext())
 			{
-				Edge e = eIter.next();
-				if(!(cg.addEdge(e)))
+				Edge e = qe.next();
+
+				SootMethod sm = e.src();
+					
+				SootClass c = sm.getDeclaringClass();
+					
+				WeightedEdge w = null;
+					
+				if(c.isJavaLibraryClass())
 				{
-					
-					SootMethod sm = e.src();
-					
-					SootClass c = sm.getDeclaringClass();
-					
-					WeightedEdge w = null;
-					
-					if(c.isJavaLibraryClass())
-					{
-						w = new WeightedEdge(e,1);//if its in the java library cant be part of framework
+					w = new WeightedEdge(e,1);//if its in the java library cant be part of framework
 						
-					}
-					else
-					{
-						String p = c.getJavaPackageName();
+				}
+				else
+				{
+					String p = c.getJavaPackageName();
 						
-						if(p.contains(regex[0]) || p.contains(regex[1]))
+					if(p.contains(regex[0]) || p.contains(regex[1]))
 						{
 							w = new WeightedEdge(e,2);//if it has android in package name part of framework.
 						}
@@ -81,63 +75,51 @@ public class WeightedCallGraph //extends CallGraph
 				}
 			}
 			
-		}
 		
 		
-	}
 	
 	public void setCallGraph(CallGraph cgraph)
 	{
 		cg = cgraph;
 		
-		Iterator<MethodOrMethodContext> mIter = cg.sourceMethods();
+		QueueReader<Edge> qe = cg.listener();
 		
-		while(mIter.hasNext())
+		
+		while(qe.hasNext())
 		{
-			MethodOrMethodContext m = mIter.next();
-			
-			Iterator<Edge> eIter = cg.edgesOutOf(m);
-			
-			while(eIter.hasNext())
+			Edge e = qe.next();
+
+			SootMethod sm = e.src();
+				
+			SootClass c = sm.getDeclaringClass();
+				
+			WeightedEdge w = null;
+				
+			if(c.isJavaLibraryClass())
 			{
-				Edge e = eIter.next();
-				if(!(cg.addEdge(e)))
-				{
+				w = new WeightedEdge(e,1);//if its in the java library cant be part of framework
 					
-					SootMethod sm = e.src();
+			}
+			else
+			{
+				String p = c.getJavaPackageName();
 					
-					SootClass c = sm.getDeclaringClass();
-					
-					WeightedEdge w = null;
-					
-					if(c.isJavaLibraryClass())
+				if(p.contains(regex[0]) || p.contains(regex[1]))
 					{
-						w = new WeightedEdge(e,1);//if its in the java library cant be part of framework
-						
+						w = new WeightedEdge(e,2);//if it has android in package name part of framework.
 					}
 					else
 					{
-						String p = c.getJavaPackageName();
-						
-						if(p.contains(regex))
-						{
-							w = new WeightedEdge(e,2);//if it has android in package name part of framework.
-						}
-						else
-						{
-							w = new WeightedEdge(e,1);//not part of android framework.
-						}
-						
-						
+						w = new WeightedEdge(e,1);//not part of android framework.
 					}
 					
-					//cg.removeEdge(e);
-					wSet.add(w);//adds all edges in the callgraph to the weightedset
+					
 				}
+				
+				//cg.removeEdge(e);
+				wSet.add(w);//adds all edges in the callgraph to the weightedset
 			}
-			
 		}
-	}
 	
 	public void weighGraph()
 	{
@@ -160,7 +142,7 @@ public class WeightedCallGraph //extends CallGraph
 			{
 				String p = c.getJavaPackageName();
 				
-				if(p.contains(regex))
+				if(p.contains(regex[0]) || p.contains(regex[1]))
 				{
 					w.setWeight(2);//if it has android in package name part of framework.
 				}
@@ -189,7 +171,7 @@ public class WeightedCallGraph //extends CallGraph
 		{
 			String p = c.getJavaPackageName();
 			
-			if(p.contains(regex))
+			if(p.contains(regex[0]) || p.contains(regex[1]))
 			{
 				w.setWeight(2);//if it has android in package name part of framework.
 			}
@@ -223,7 +205,7 @@ public class WeightedCallGraph //extends CallGraph
 			{
 				String p = c.getJavaPackageName();
 				
-				if(p.contains(regex))
+				if(p.contains(regex[0]) || p.contains(regex[1]))
 				{
 					w = new WeightedEdge(e,2);//if it has android in package name part of framework.
 				}
