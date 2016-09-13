@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<project name="BlueSeal" default="Main" basedir=".">
+  <!-- Sets variables which can later be used. -->
+  <!-- The value of a property is accessed via ${} -->
+
+  <property name="src" location="src" />
+  <property name="lib" location="libs" />
+  <property name="build" location="bin" />
+  <!-- <property name="dist" location="dist" />  -->
+
+<path id="3rd-party-classpath">
+    <fileset dir="${lib}">
+        <include name="**/*.jar" />
+    </fileset>
+</path>
+
+<target name="build">
+    <javac srcdir="${src}" destdir="${build}">
+        <classpath refid="3rd-party-classpath" />
+    </javac>
+</target>
+
+<target name="build-jar" depends="build">
+  <jar jarfile="blueseal.jar" basedir="${build}" />
+</target>
+
+<target name="run" depends="build">
+    <java classname="edu.buffalo.cse.blueseal.BSFlow.InterProceduralMain"
+          timeout="1800000">
+      <permissions>
+        <grant class="java.security.AllPermission"/>
+      </permissions>
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="3rd-party-classpath" />
+      </classpath>
+      <arg value="${arg0}"/>
+    </java>
+</target>
+
+<target name="runTimeOut" depends="build">
+  <java classname="edu.buffalo.cse.blueseal.main.Main"
+        timeout="1800000">
+    <permissions>
+      <grant class="java.security.AllPermission"/>
+    </permissions>
+    <classpath>
+      <pathelement location="${build}" />
+      <path refid="3rd-party-classpath" />
+    </classpath>
+    <arg value="${arg0}" />
+  </java>
+</target>
+
+<target name="Main" depends="build, run">
+    <description>Main target</description>
+</target>
+
+</project>
+
